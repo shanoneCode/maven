@@ -5,27 +5,71 @@ pipeline {
         maven 'maven'
     }
 
+    environment {
+        IMAGE_NAME = "mon-app"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+    }
+
     stages {
 
-        stage('Clone') {
+        stage('Récupérer le code') {
             steps {
-                echo "Clonage du projet depuis GitHub..."
-                git branch: 'main',
-                    url: 'https://github.com/shanoneCode/maven'
+                echo "Récupération du code depuis Git..."
+                checkout scm
             }
         }
 
-        stage('Build') {
+        stage('Compiler') {
             steps {
-                echo "Compilation et packaging..."
-                sh 'mvn clean package -DskipTests'
+                echo "Compilation du projet Maven..."
+                sh 'mvn clean compile'
             }
         }
 
-        stage('Run') {
+        stage('Tests unitaires') {
             steps {
-                echo "Lancement de l application..."
-                sh 'java -jar target/mon-app-1.0.0.jar'
+                echo "Lancement des tests..."
+                sh 'mvn test'
+            }
+        }
+
+        stage('Packager') {
+            steps {
+                echo "Création du fichier JAR..."
+                sh 'mvn package -DskipTests'
+            }
+        }
+
+        stage('Build image Docker') {
+            steps {
+                echo "Construction de l'image Docker..."
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Scan Trivy') {
+            steps {
+                echo "Scan de vulnérabilités avec Trivy..."
+                sh """
+                    trivy image \
+                    --exit-code 1 \
+                    --severity CRITICAL \
+                    --format json \
+                    --output trivy-report.json \
+                    ${IMAGE_NAME}:${IMAGE_TAG}
+                """
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.json'
+                }
+            }
+        }
+
+        stage('Déployer') {
+            steps {
+                echo "Déploiement de l'application..."
+                sh "docker run -d --name ${IMAGE_NAME}-${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
 
@@ -33,10 +77,10 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline terminé avec succès !"
+            echo "Pipeline réussi — aucune vulnérabilité critique détectée !"
         }
         failure {
-            echo "Pipeline échoué — vérifiez les logs."
+            echo "Pipeline échoué — vérifiez les logs ci-dessus."
         }
     }
 }
