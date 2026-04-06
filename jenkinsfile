@@ -14,42 +14,43 @@ pipeline {
 
         stage('Récupérer le code') {
             steps {
-                echo "Récupération du code depuis Git..."
-                checkout scm
+                echo "Récupération du code..."
+                git branch: 'main',
+                    url: 'https://github.com/shanoneCode/maven'
             }
         }
 
         stage('Compiler') {
             steps {
-                echo "Compilation du projet Maven..."
+                echo "Compilation..."
                 sh 'mvn clean compile'
             }
         }
 
-        stage('Tests unitaires') {
+        stage('Tests') {
             steps {
-                echo "Lancement des tests..."
+                echo "Tests unitaires..."
                 sh 'mvn test'
             }
         }
 
         stage('Packager') {
             steps {
-                echo "Création du fichier JAR..."
+                echo "Création du JAR..."
                 sh 'mvn package -DskipTests'
             }
         }
 
-        stage('Build image Docker') {
+        stage('Build Docker') {
             steps {
-                echo "Construction de l'image Docker..."
+                echo "Construction image Docker..."
                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
         stage('Scan Trivy') {
             steps {
-                echo "Scan de vulnérabilités avec Trivy..."
+                echo "Scan de vulnérabilités..."
                 sh """
                     trivy image \
                     --exit-code 1 \
@@ -66,21 +67,14 @@ pipeline {
             }
         }
 
-        stage('Déployer') {
-            steps {
-                echo "Déploiement de l'application..."
-                sh "docker run -d --name ${IMAGE_NAME}-${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}"
-            }
-        }
-
     }
 
     post {
         success {
-            echo "Pipeline réussi — aucune vulnérabilité critique détectée !"
+            echo "Pipeline réussi — aucune CVE critique détectée !"
         }
         failure {
-            echo "Pipeline échoué — vérifiez les logs ci-dessus."
+            echo "Pipeline échoué — vérifiez les logs."
         }
     }
 }
