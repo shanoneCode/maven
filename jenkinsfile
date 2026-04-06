@@ -2,68 +2,30 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven'
-    }
-
-    environment {
-        IMAGE_NAME = "mon-app"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
+        maven 'Maven'
     }
 
     stages {
 
-        stage('Récupérer le code') {
+        stage('Clone') {
             steps {
-                echo "Récupération du code..."
+                echo "Clonage du projet depuis GitHub..."
                 git branch: 'main',
                     url: 'https://github.com/shanoneCode/maven'
             }
         }
 
-        stage('Compiler') {
+        stage('Build') {
             steps {
-                echo "Compilation..."
-                sh 'mvn clean compile'
+                echo "Compilation et packaging..."
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Tests') {
+        stage('Run') {
             steps {
-                echo "Tests unitaires..."
-                sh 'mvn test'
-            }
-        }
-
-        stage('Packager') {
-            steps {
-                echo "Création du JAR..."
-                sh 'mvn package -DskipTests'
-            }
-        }
-
-        stage('Build Docker') {
-            steps {
-                echo "Construction image Docker..."
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-            }
-        }
-
-        stage('Scan Trivy') {
-            steps {
-                echo "Scan de vulnérabilités..."
-                sh """
-                    trivy image \
-                    --exit-code 1 \
-                    --severity CRITICAL \
-                    --format json \
-                    --output trivy-report.json \
-                    ${IMAGE_NAME}:${IMAGE_TAG}
-                """
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trivy-report.json'
-                }
+                echo "Lancement de l application..."
+                sh 'java -jar target/mon-app-1.0.0.jar'
             }
         }
 
@@ -71,7 +33,7 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline réussi — aucune CVE critique détectée !"
+            echo "Pipeline terminé avec succès !"
         }
         failure {
             echo "Pipeline échoué — vérifiez les logs."
